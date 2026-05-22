@@ -8,16 +8,6 @@ terraform {
   }
 }
 
-terraform {
-  required_version = ">= 1.6.0, < 2.0.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.80"
-    }
-  }
-}
-
 provider "aws" {
   region = var.aws_region
 }
@@ -27,6 +17,17 @@ variable "name_prefix" { type = string }
 
 resource "aws_s3_bucket" "tfstate" {
   bucket = "${var.name_prefix}-tfstate"
+}
+
+resource "aws_kms_key" "tfstate" {
+  description             = "KMS key for Terraform state and lock table"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+}
+
+resource "aws_kms_alias" "tfstate" {
+  name          = "alias/${var.name_prefix}-tfstate"
+  target_key_id = aws_kms_key.tfstate.key_id
 }
 
 resource "aws_s3_bucket_versioning" "tfstate" {
@@ -40,7 +41,21 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate" {
   bucket = aws_s3_bucket.tfstate.id
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.tfstate.arn
+    }
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "tfstate" {
+  bucket = aws_s3_bucket.tfstate.id
+
+  rule {
+    id     = "expire-noncurrent-versions"
+    status = "Enabled"
+
+    noncurrent_version_expiration {
+      noncurrent_days = 90
     }
   }
 }
@@ -61,8 +76,16 @@ resource "aws_dynamodb_table" "tflock" {
     name = "LockID"
     type = "S"
   }
+
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = aws_kms_key.tfstate.arn
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
 }
 
 output "bucket_name" { value = aws_s3_bucket.tfstate.bucket }
 output "dynamodb_table_name" { value = aws_dynamodb_table.tflock.name }
-
