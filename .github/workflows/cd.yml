@@ -1,0 +1,78 @@
+name: CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (dev|staging|prod)"
+        required: true
+        type: choice
+        options: [dev, staging, prod]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push images
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ENV: ${{ inputs.environment }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker build -f services/python/Dockerfile.api -t "$REGISTRY/agentic-sre-api:$ENV-$SHA" services/python
+          docker build -f services/python/Dockerfile.worker -t "$REGISTRY/agentic-sre-worker:$ENV-$SHA" services/python
+          docker build -f services/alloy/Dockerfile -t "$REGISTRY/agentic-sre-alloy:$ENV-$SHA" services/alloy
+          docker push "$REGISTRY/agentic-sre-api:$ENV-$SHA"
+          docker push "$REGISTRY/agentic-sre-worker:$ENV-$SHA"
+          docker push "$REGISTRY/agentic-sre-alloy:$ENV-$SHA"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.8.5"
+
+      - name: Terraform init
+        working-directory: terraform/envs/${{ inputs.environment }}
+        run: terraform init -backend-config=backend.hcl
+
+      - name: Terraform plan
+        working-directory: terraform/envs/${{ inputs.environment }}
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ENV: ${{ inputs.environment }}
+          SHA: ${{ github.sha }}
+          TF_VAR_container_images: >-
+            {"api":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-api:${{ inputs.environment }}-${{ github.sha }}",
+             "analyzer":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
+             "planner":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
+             "executor":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
+             "alloy":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-alloy:${{ inputs.environment }}-${{ github.sha }}"}
+        run: |
+          terraform plan -out=tfplan
+
+      - name: Terraform apply
+        working-directory: terraform/envs/${{ inputs.environment }}
+        env:
+          TF_VAR_container_images: >-
+            {"api":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-api:${{ inputs.environment }}-${{ github.sha }}",
+             "analyzer":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
+             "planner":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
+             "executor":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
+             "alloy":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-alloy:${{ inputs.environment }}-${{ github.sha }}"}
+        run: terraform apply -auto-approve tfplan

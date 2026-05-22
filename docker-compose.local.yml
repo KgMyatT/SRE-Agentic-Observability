@@ -1,0 +1,57 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "localpass"]
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ./services/python
+      dockerfile: Dockerfile.api
+    environment:
+      APP_ENV: local
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH_TOKEN: localpass
+    ports:
+      - "8080:8080"
+    depends_on: [redis]
+
+  analyzer:
+    build:
+      context: ./services/python
+      dockerfile: Dockerfile.worker
+    command: ["python", "-m", "sre_platform.workers.analyzer"]
+    environment:
+      APP_ENV: local
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH_TOKEN: localpass
+    depends_on: [redis]
+
+  planner:
+    build:
+      context: ./services/python
+      dockerfile: Dockerfile.worker
+    command: ["python", "-m", "sre_platform.workers.planner"]
+    environment:
+      APP_ENV: local
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH_TOKEN: localpass
+    depends_on: [redis]
+
+  executor:
+    build:
+      context: ./services/python
+      dockerfile: Dockerfile.worker
+    command: ["python", "-m", "sre_platform.workers.executor"]
+    environment:
+      APP_ENV: local
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH_TOKEN: localpass
+      SLACK_WEBHOOK: ""
+    depends_on: [redis]
+

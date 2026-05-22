@@ -1,0 +1,33 @@
+// Grafana Alloy configuration (River)
+// - Scrapes Prometheus metrics from the API and redis_exporter
+// - Remote writes to Grafana Cloud Prometheus
+// - Tails no logs here (logs are shipped via FireLens/Fluent Bit to Loki)
+
+logging {
+  level = "info"
+  format = "json"
+}
+
+prometheus.scrape "api" {
+  targets = [
+    { __address__ = env("API_METRICS_TARGET"), job = "agentic-sre-api" },
+  ]
+  forward_to = [prometheus.remote_write.grafana.receiver]
+}
+
+prometheus.scrape "redis" {
+  targets = [
+    { __address__ = "127.0.0.1:9121", job = "redis" },
+  ]
+  forward_to = [prometheus.remote_write.grafana.receiver]
+}
+
+prometheus.remote_write "grafana" {
+  endpoint {
+    url = env("GRAFANA_PROM_REMOTE_WRITE_URL")
+    basic_auth {
+      username = env("GRAFANA_PROM_USER")
+      password = env("GRAFANA_API_KEY")
+    }
+  }
+}
