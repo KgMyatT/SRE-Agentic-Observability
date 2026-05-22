@@ -11,11 +11,9 @@ module "vpc" {
 module "security_groups" {
   source = "./modules/security-groups"
 
-  name_prefix          = local.name_prefix
-  vpc_id               = module.vpc.vpc_id
-  public_subnet_cidrs  = module.vpc.public_subnet_cidrs
-  private_subnet_cidrs = module.vpc.private_subnet_cidrs
-  api_container_port   = var.ecs.api.container_port
+  name_prefix        = local.name_prefix
+  vpc_id             = module.vpc.vpc_id
+  api_container_port = var.ecs.api.container_port
 }
 
 module "iam" {
@@ -60,16 +58,14 @@ module "redis" {
 module "ecs" {
   source = "./modules/ecs"
 
-  name_prefix                = local.name_prefix
-  vpc_id                     = module.vpc.vpc_id
-  private_subnet_ids         = module.vpc.private_subnet_ids
-  ecs_security_group_id      = module.security_groups.ecs_sg_id
-  task_execution_role_arn    = module.iam.ecs_task_execution_role_arn
-  task_role_arn              = module.iam.ecs_task_role_arn
-  log_group_name             = module.cloudwatch.log_group_name
-  alb_target_group_arn       = module.alb.target_group_arn
-  alb_listener_arn           = module.alb.listener_arn
-  api_listener_rule_priority = 100
+  name_prefix             = local.name_prefix
+  vpc_id                  = module.vpc.vpc_id
+  private_subnet_ids      = module.vpc.private_subnet_ids
+  ecs_security_group_id   = module.security_groups.ecs_sg_id
+  task_execution_role_arn = module.iam.ecs_task_execution_role_arn
+  task_role_arn           = module.iam.ecs_task_role_arn
+  log_group_name          = module.cloudwatch.log_group_name
+  alb_target_group_arn    = module.alb.target_group_arn
 
   container_images = var.container_images
   ecs              = var.ecs

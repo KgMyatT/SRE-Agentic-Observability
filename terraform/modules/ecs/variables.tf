@@ -7,8 +7,6 @@ variable "task_role_arn" { type = string }
 variable "log_group_name" { type = string }
 
 variable "alb_target_group_arn" { type = string }
-variable "alb_listener_arn" { type = string }
-variable "api_listener_rule_priority" { type = number }
 
 variable "container_images" {
   type = object({
