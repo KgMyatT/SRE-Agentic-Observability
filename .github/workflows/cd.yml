@@ -150,6 +150,16 @@ jobs:
           name: tfstate-${{ inputs.environment }}
           path: terraform/envs/${{ inputs.environment }}
 
+      - name: Disable remote backend (artifact/ephemeral)
+        if: ${{ inputs.state_backend != 'remote' }}
+        working-directory: terraform/envs/${{ inputs.environment }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f backend.tf ]]; then
+            mv backend.tf backend.tf.disabled
+          fi
+
       - name: Terraform Initialize
         working-directory: terraform/envs/${{ inputs.environment }}
         shell: bash
