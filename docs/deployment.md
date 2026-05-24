@@ -17,7 +17,23 @@ From `terraform/backend`:
 - `terraform init`
 - `terraform apply -var aws_region=us-east-1 -var name_prefix=agentic-sre`
 
-Update `terraform/envs/*/backend.hcl` to match the printed `bucket_name` and `dynamodb_table_name`.
+Record the printed outputs:
+- `bucket_name`
+- `dynamodb_table_name`
+
+### Recommended: set GitHub Environment variables for CD
+
+In GitHub → Settings → Environments → (`dev`, `staging`, `prod`) → Variables:
+- `TFSTATE_BUCKET` = `<bucket_name>`
+- `TFLOCK_TABLE` = `<dynamodb_table_name>`
+- `TFSTATE_REGION` = `us-east-1` (or your backend region)
+
+The CD workflow uses these variables (instead of relying on `backend.hcl` placeholders).
+
+### Local runs
+
+If you prefer local CLI to use `backend.hcl`, update:
+- `terraform/envs/*/backend.hcl` to the real `bucket` and `dynamodb_table` values.
 
 ## 2) Create Secrets Manager secrets (names only created by Terraform)
 

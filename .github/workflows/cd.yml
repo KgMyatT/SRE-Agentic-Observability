@@ -18,6 +18,10 @@ on:
         type: choice
         options: ["false", "true"]
         default: "false"
+      tfstate_key_prefix:
+        description: "Terraform state key prefix (defaults to <environment>/terraform.tfstate)"
+        required: false
+        default: ""
 
 permissions:
   id-token: write   # Mandatory for OIDC handshake
@@ -32,6 +36,10 @@ jobs:
       # Fixes Node.js 20 Deprecation Warn & Terminal blocks for June 2026
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION || inputs.aws_region }}
+      TFSTATE_BUCKET: ${{ vars.TFSTATE_BUCKET || secrets.TFSTATE_BUCKET }}
+      TFLOCK_TABLE: ${{ vars.TFLOCK_TABLE || secrets.TFLOCK_TABLE }}
+      TFSTATE_REGION: ${{ vars.TFSTATE_REGION || secrets.TFSTATE_REGION || vars.AWS_REGION || secrets.AWS_REGION || inputs.aws_region }}
+      TFSTATE_KEY: ${{ inputs.tfstate_key_prefix != '' && format('{0}/{1}', inputs.tfstate_key_prefix, 'terraform.tfstate') || format('{0}/{1}', inputs.environment, 'terraform.tfstate') }}
 
     steps:
       - name: Checkout Source Code
@@ -54,6 +62,18 @@ jobs:
           fi
           if [[ -z "${AWS_REGION:-}" ]]; then
             echo "Missing AWS region. Set repo/environment variable AWS_REGION, or secret AWS_REGION, or pass workflow input aws_region." >&2
+            exit 1
+          fi
+          if [[ -z "${TFSTATE_BUCKET:-}" ]]; then
+            echo "Missing TFSTATE_BUCKET. Create backend via terraform/backend then set repo/environment variable TFSTATE_BUCKET." >&2
+            exit 1
+          fi
+          if [[ -z "${TFLOCK_TABLE:-}" ]]; then
+            echo "Missing TFLOCK_TABLE. Create backend via terraform/backend then set repo/environment variable TFLOCK_TABLE." >&2
+            exit 1
+          fi
+          if [[ "${TFSTATE_BUCKET}" == CHANGE_ME-* ]] || [[ "${TFLOCK_TABLE}" == CHANGE_ME-* ]]; then
+            echo "TFSTATE_BUCKET/TFLOCK_TABLE still contains CHANGE_ME placeholders. Set real values from terraform/backend outputs." >&2
             exit 1
           fi
 
@@ -110,7 +130,15 @@ jobs:
 
       - name: Terraform Initialize
         working-directory: terraform/envs/${{ inputs.environment }}
-        run: terraform init -backend-config=backend.hcl
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform init \
+            -backend-config="bucket=${TFSTATE_BUCKET}" \
+            -backend-config="key=${TFSTATE_KEY}" \
+            -backend-config="region=${TFSTATE_REGION}" \
+            -backend-config="dynamodb_table=${TFLOCK_TABLE}" \
+            -backend-config="encrypt=true"
 
       - name: Terraform Plan
         working-directory: terraform/envs/${{ inputs.environment }}
