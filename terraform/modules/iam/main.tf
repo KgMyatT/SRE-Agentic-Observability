@@ -44,13 +44,8 @@ data "aws_iam_policy_document" "ecs_task_inline" {
   }
 }
 
-resource "aws_iam_policy" "ecs_task_inline" {
+resource "aws_iam_role_policy" "ecs_task_inline" {
   name   = "${var.name_prefix}-ecs-task-inline"
+  role   = aws_iam_role.ecs_task.id
   policy = data.aws_iam_policy_document.ecs_task_inline.json
 }
-
-resource "aws_iam_role_policy_attachment" "ecs_task_inline_attach" {
-  role       = aws_iam_role.ecs_task.name
-  policy_arn = aws_iam_policy.ecs_task_inline.arn
-}
-

@@ -218,7 +218,8 @@ jobs:
             terraform/envs/${{ inputs.environment }}/terraform.tfstate.backup
 
       - name: Ephemeral cleanup (destroy)
-        if: ${{ inputs.state_backend == 'ephemeral' }}
+        if: ${{ inputs.state_backend == 'ephemeral' && always() }}
+        continue-on-error: true
         working-directory: terraform/envs/${{ inputs.environment }}
         env:
           TF_VAR_container_images: >-
