@@ -41,6 +41,11 @@ jobs:
             echo "Missing required secret: AWS_ROLE_ARN (set it at repo or environment level)." >&2
             exit 1
           fi
+          if [[ ! "$AWS_ROLE_ARN" =~ ^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role\/[A-Za-z0-9+=,.@_/-]+$ ]]; then
+            echo "Invalid AWS_ROLE_ARN format. Expected: arn:aws:iam::<12-digit-account-id>:role/<role-name>" >&2
+            echo "Got (masked): ${AWS_ROLE_ARN:0:16}***" >&2
+            exit 1
+          fi
           if [[ -z "${AWS_REGION:-}" ]]; then
             echo "Missing AWS region. Set repo/environment variable AWS_REGION, or secret AWS_REGION, or pass workflow input aws_region." >&2
             exit 1
