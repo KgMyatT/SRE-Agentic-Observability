@@ -30,6 +30,13 @@ In GitHub → Settings → Environments → (`dev`, `staging`, `prod`) → Varia
 
 The CD workflow uses these variables (instead of relying on `backend.hcl` placeholders).
 
+### Non-S3 modes (not recommended for production)
+
+The CD workflow supports `state_backend`:
+- `remote` (recommended): S3 + DynamoDB locking
+- `artifact`: stores `terraform.tfstate` as a GitHub Actions artifact between runs (no locking; avoid parallel deploys)
+- `ephemeral`: uses local state and runs `terraform destroy` at end (useful for smoke tests / previews)
+
 ### Local runs
 
 If you prefer local CLI to use `backend.hcl`, update:

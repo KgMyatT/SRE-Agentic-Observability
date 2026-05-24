@@ -8,6 +8,12 @@ on:
         required: true
         type: choice
         options: [dev, staging, prod]
+      state_backend:
+        description: "Terraform state backend mode"
+        required: false
+        type: choice
+        options: ["remote", "artifact", "ephemeral"]
+        default: "remote"
       aws_region:
         description: "AWS region (fallback if repo/environment variable not set)"
         required: false
@@ -31,6 +37,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    concurrency:
+      group: agentic-sre-${{ inputs.environment }}-deploy
+      cancel-in-progress: false
     
     env:
       # Fixes Node.js 20 Deprecation Warn & Terminal blocks for June 2026
@@ -64,17 +73,22 @@ jobs:
             echo "Missing AWS region. Set repo/environment variable AWS_REGION, or secret AWS_REGION, or pass workflow input aws_region." >&2
             exit 1
           fi
-          if [[ -z "${TFSTATE_BUCKET:-}" ]]; then
-            echo "Missing TFSTATE_BUCKET. Create backend via terraform/backend then set repo/environment variable TFSTATE_BUCKET." >&2
-            exit 1
-          fi
-          if [[ -z "${TFLOCK_TABLE:-}" ]]; then
-            echo "Missing TFLOCK_TABLE. Create backend via terraform/backend then set repo/environment variable TFLOCK_TABLE." >&2
-            exit 1
-          fi
-          if [[ "${TFSTATE_BUCKET}" == CHANGE_ME-* ]] || [[ "${TFLOCK_TABLE}" == CHANGE_ME-* ]]; then
-            echo "TFSTATE_BUCKET/TFLOCK_TABLE still contains CHANGE_ME placeholders. Set real values from terraform/backend outputs." >&2
-            exit 1
+          if [[ "${{ inputs.state_backend }}" == "remote" ]]; then
+            if [[ -z "${TFSTATE_BUCKET:-}" ]]; then
+              echo "Missing TFSTATE_BUCKET. Create backend via terraform/backend then set repo/environment variable TFSTATE_BUCKET." >&2
+              exit 1
+            fi
+            if [[ -z "${TFLOCK_TABLE:-}" ]]; then
+              echo "Missing TFLOCK_TABLE. Create backend via terraform/backend then set repo/environment variable TFLOCK_TABLE." >&2
+              exit 1
+            fi
+            if [[ "${TFSTATE_BUCKET}" == CHANGE_ME-* ]] || [[ "${TFLOCK_TABLE}" == CHANGE_ME-* ]]; then
+              echo "TFSTATE_BUCKET/TFLOCK_TABLE still contains CHANGE_ME placeholders. Set real values from terraform/backend outputs." >&2
+              exit 1
+            fi
+          else
+            echo "Using non-remote Terraform state backend: ${{ inputs.state_backend }}"
+            echo "NOTE: This is not production-grade. Prefer remote state (S3+DynamoDB) for real deployments."
           fi
 
       - name: Configure AWS Credentials via OIDC
@@ -128,17 +142,29 @@ jobs:
         with:
           terraform_version: "1.8.5"
 
+      - name: Restore Terraform state (artifact)
+        if: ${{ inputs.state_backend == 'artifact' }}
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: tfstate-${{ inputs.environment }}
+          path: terraform/envs/${{ inputs.environment }}
+
       - name: Terraform Initialize
         working-directory: terraform/envs/${{ inputs.environment }}
         shell: bash
         run: |
           set -euo pipefail
-          terraform init \
-            -backend-config="bucket=${TFSTATE_BUCKET}" \
-            -backend-config="key=${TFSTATE_KEY}" \
-            -backend-config="region=${TFSTATE_REGION}" \
-            -backend-config="dynamodb_table=${TFLOCK_TABLE}" \
-            -backend-config="encrypt=true"
+          if [[ "${{ inputs.state_backend }}" == "remote" ]]; then
+            terraform init \
+              -backend-config="bucket=${TFSTATE_BUCKET}" \
+              -backend-config="key=${TFSTATE_KEY}" \
+              -backend-config="region=${TFSTATE_REGION}" \
+              -backend-config="dynamodb_table=${TFLOCK_TABLE}" \
+              -backend-config="encrypt=true"
+          else
+            terraform init -backend=false
+          fi
 
       - name: Terraform Plan
         working-directory: terraform/envs/${{ inputs.environment }}
@@ -164,3 +190,24 @@ jobs:
              "executor":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
              "alloy":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-alloy:${{ inputs.environment }}-${{ github.sha }}"}
         run: terraform apply -auto-approve tfplan
+
+      - name: Persist Terraform state (artifact)
+        if: ${{ inputs.state_backend == 'artifact' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfstate-${{ inputs.environment }}
+          path: |
+            terraform/envs/${{ inputs.environment }}/terraform.tfstate
+            terraform/envs/${{ inputs.environment }}/terraform.tfstate.backup
+
+      - name: Ephemeral cleanup (destroy)
+        if: ${{ inputs.state_backend == 'ephemeral' }}
+        working-directory: terraform/envs/${{ inputs.environment }}
+        env:
+          TF_VAR_container_images: >-
+            {"api":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-api:${{ inputs.environment }}-${{ github.sha }}",
+             "analyzer":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
+             "planner":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
+             "executor":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
+             "alloy":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-alloy:${{ inputs.environment }}-${{ github.sha }}"}
+        run: terraform destroy -auto-approve
