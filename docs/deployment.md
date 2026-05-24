@@ -41,6 +41,17 @@ Create ECR repos (recommended):
 - `agentic-sre-worker`
 - `agentic-sre-alloy`
 
+Two supported approaches:
+
+1) **Recommended (IaC, long-lived):** apply `terraform/shared/ecr` once (prevents accidental deletion)
+   - `cd terraform/shared/ecr`
+   - `terraform init`
+   - `terraform apply -var aws_region=us-east-1 -var project_name=agentic-sre`
+
+2) **Pipeline bootstrap (optional):** run GitHub Actions CD with input `bootstrap_ecr=true`
+   - Requires the GitHub Actions role to have `ecr:CreateRepository`
+   - Trade-off: easier onboarding, but increases CI role privileges and can drift from Terraform
+
 Then build/push:
 
 - `docker build -f services/python/Dockerfile.api -t <acct>.dkr.ecr.<region>.amazonaws.com/agentic-sre-api:<tag> services/python`
@@ -65,4 +76,3 @@ From `terraform/envs/dev`:
 
 - ECS uses rolling deployments. Roll back by re-pointing the service to a previous image tag and re-applying.
 - Terraform-managed changes: revert commit and re-apply.
-

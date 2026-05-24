@@ -12,6 +12,12 @@ on:
         description: "AWS region (fallback if repo/environment variable not set)"
         required: false
         default: "us-east-1"
+      bootstrap_ecr:
+        description: "Create ECR repos if missing (requires ecr:CreateRepository)"
+        required: false
+        type: choice
+        options: ["false", "true"]
+        default: "false"
 
 permissions:
   id-token: write   # Mandatory for OIDC handshake
@@ -61,7 +67,8 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Ensure ECR repositories exist
+      - name: Ensure ECR repositories exist (optional)
+        if: ${{ inputs.bootstrap_ecr == 'true' }}
         shell: bash
         env:
           AWS_REGION: ${{ env.AWS_REGION }}
