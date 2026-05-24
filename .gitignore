@@ -3,6 +3,7 @@
 **/.terraform/*
 **/*.tfstate
 **/*.tfstate.*
+terraform/.terraformrc
 crash.log
 override.tf
 override.tf.json
@@ -24,3 +25,64 @@ build/
 .idea/
 .vscode/
 
+# =========================
+# Terraform
+# =========================
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+terraform.tfvars
+*.auto.tfvars
+
+# Terraform plans
+*.tfplan
+
+# Terraform lock backup
+.terraform.lock.hcl.backup
+
+# =========================
+# AWS / IAM Bootstrap
+# =========================
+bootstrap/
+trust-policy.json
+github-actions-ecr-policy.json
+
+# =========================
+# Secrets
+# =========================
+.env
+.env.*
+secrets.*
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# =========================
+# Docker
+# =========================
+docker-data/
+tmp/
+
+# =========================
+# IDE
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db

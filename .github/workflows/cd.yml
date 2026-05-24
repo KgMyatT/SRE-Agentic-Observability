@@ -61,6 +61,26 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Ensure ECR repositories exist
+        shell: bash
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          repos=(agentic-sre-api agentic-sre-worker agentic-sre-alloy)
+          for r in "${repos[@]}"; do
+            if aws ecr describe-repositories --repository-names "$r" --region "$AWS_REGION" >/dev/null 2>&1; then
+              echo "ECR repo exists: $r"
+            else
+              echo "Creating ECR repo: $r"
+              aws ecr create-repository \
+                --repository-name "$r" \
+                --image-scanning-configuration scanOnPush=true \
+                --encryption-configuration encryptionType=AES256 \
+                --region "$AWS_REGION" >/dev/null
+            fi
+          done
+
       - name: Build & Push Service Container Images
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
