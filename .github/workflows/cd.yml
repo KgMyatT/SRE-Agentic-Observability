@@ -8,6 +8,10 @@ on:
         required: true
         type: choice
         options: [dev, staging, prod]
+      aws_region:
+        description: "AWS region (fallback if repo/environment variable not set)"
+        required: false
+        default: "us-east-1"
 
 permissions:
   id-token: write   # Mandatory for OIDC handshake
@@ -21,16 +25,32 @@ jobs:
     env:
       # Fixes Node.js 20 Deprecation Warn & Terminal blocks for June 2026
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION || inputs.aws_region }}
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
+      - name: Preflight (required vars/secrets)
+        shell: bash
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${AWS_ROLE_ARN:-}" ]]; then
+            echo "Missing required secret: AWS_ROLE_ARN (set it at repo or environment level)." >&2
+            exit 1
+          fi
+          if [[ -z "${AWS_REGION:-}" ]]; then
+            echo "Missing AWS region. Set repo/environment variable AWS_REGION, or secret AWS_REGION, or pass workflow input aws_region." >&2
+            exit 1
+          fi
+
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }} # Fixed: Extracted from Repository/Environment Variables
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -70,7 +90,7 @@ jobs:
             {"api":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-api:${{ inputs.environment }}-${{ github.sha }}",
              "analyzer":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
              "planner":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
-             "executor":"${{ secrets.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
+             "executor":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
              "alloy":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-alloy:${{ inputs.environment }}-${{ github.sha }}"}
         run: terraform plan -out=tfplan
 
