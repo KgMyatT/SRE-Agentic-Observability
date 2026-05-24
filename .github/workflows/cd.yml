@@ -10,26 +10,33 @@ on:
         options: [dev, staging, prod]
 
 permissions:
-  id-token: write
-  contents: read
+  id-token: write   # Mandatory for OIDC handshake
+  contents: read    # Mandatory for repository checkout
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-    steps:
-      - uses: actions/checkout@v4
+    
+    env:
+      # Fixes Node.js 20 Deprecation Warn & Terminal blocks for June 2026
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
-      - uses: aws-actions/configure-aws-credentials@v4
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION }} # Fixed: Extracted from Repository/Environment Variables
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & push images
+      - name: Build & Push Service Container Images
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ENV: ${{ inputs.environment }}
@@ -39,19 +46,21 @@ jobs:
           docker build -f services/python/Dockerfile.api -t "$REGISTRY/agentic-sre-api:$ENV-$SHA" services/python
           docker build -f services/python/Dockerfile.worker -t "$REGISTRY/agentic-sre-worker:$ENV-$SHA" services/python
           docker build -f services/alloy/Dockerfile -t "$REGISTRY/agentic-sre-alloy:$ENV-$SHA" services/alloy
+          
           docker push "$REGISTRY/agentic-sre-api:$ENV-$SHA"
           docker push "$REGISTRY/agentic-sre-worker:$ENV-$SHA"
           docker push "$REGISTRY/agentic-sre-alloy:$ENV-$SHA"
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup HashiCorp Terraform CLI
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.8.5"
 
-      - name: Terraform init
+      - name: Terraform Initialize
         working-directory: terraform/envs/${{ inputs.environment }}
         run: terraform init -backend-config=backend.hcl
 
-      - name: Terraform plan
+      - name: Terraform Plan
         working-directory: terraform/envs/${{ inputs.environment }}
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -61,12 +70,11 @@ jobs:
             {"api":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-api:${{ inputs.environment }}-${{ github.sha }}",
              "analyzer":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
              "planner":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
-             "executor":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
+             "executor":"${{ secrets.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
              "alloy":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-alloy:${{ inputs.environment }}-${{ github.sha }}"}
-        run: |
-          terraform plan -out=tfplan
+        run: terraform plan -out=tfplan
 
-      - name: Terraform apply
+      - name: Terraform Apply
         working-directory: terraform/envs/${{ inputs.environment }}
         env:
           TF_VAR_container_images: >-
