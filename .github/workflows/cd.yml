@@ -49,6 +49,9 @@ jobs:
       TFLOCK_TABLE: ${{ vars.TFLOCK_TABLE || secrets.TFLOCK_TABLE }}
       TFSTATE_REGION: ${{ vars.TFSTATE_REGION || secrets.TFSTATE_REGION || vars.AWS_REGION || secrets.AWS_REGION || inputs.aws_region }}
       TFSTATE_KEY: ${{ inputs.tfstate_key_prefix != '' && format('{0}/{1}', inputs.tfstate_key_prefix, 'terraform.tfstate') || format('{0}/{1}', inputs.environment, 'terraform.tfstate') }}
+      # Prevent hidden runner/repo env from altering terraform behavior (e.g., -detailed-exitcode).
+      TF_CLI_ARGS: ""
+      TF_CLI_ARGS_plan: ""
 
     steps:
       - name: Checkout Source Code
@@ -141,6 +144,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.8.5"
+          terraform_wrapper: false
 
       - name: Restore Terraform state (artifact)
         if: ${{ inputs.state_backend == 'artifact' }}
@@ -188,7 +192,10 @@ jobs:
              "planner":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
              "executor":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
              "alloy":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-alloy:${{ inputs.environment }}-${{ github.sha }}"}
-        run: terraform plan -out=tfplan
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform plan -out=tfplan
 
       - name: Terraform Apply
         working-directory: terraform/envs/${{ inputs.environment }}
