@@ -19,7 +19,9 @@ module "security_groups" {
 module "iam" {
   source = "./modules/iam"
 
-  name_prefix = local.name_prefix
+  name_prefix   = local.name_prefix
+  secret_arns   = module.secrets_manager.secret_arns
+  log_group_arn = module.cloudwatch.log_group_arn
 }
 
 module "secrets_manager" {
