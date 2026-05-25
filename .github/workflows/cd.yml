@@ -195,6 +195,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${{ inputs.state_backend }}" == "ephemeral" && "${{ inputs.environment }}" == "dev" ]]; then
+            export TF_VAR_demo_suffix="${GITHUB_RUN_ID}"
+          fi
           terraform plan -out=tfplan
 
       - name: Terraform Apply
@@ -206,7 +209,13 @@ jobs:
              "planner":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
              "executor":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
              "alloy":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-alloy:${{ inputs.environment }}-${{ github.sha }}"}
-        run: terraform apply -auto-approve tfplan
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.state_backend }}" == "ephemeral" && "${{ inputs.environment }}" == "dev" ]]; then
+            export TF_VAR_demo_suffix="${GITHUB_RUN_ID}"
+          fi
+          terraform apply -auto-approve tfplan
 
       - name: Persist Terraform state (artifact)
         if: ${{ inputs.state_backend == 'artifact' }}
@@ -228,4 +237,10 @@ jobs:
              "planner":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
              "executor":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-worker:${{ inputs.environment }}-${{ github.sha }}",
              "alloy":"${{ steps.login-ecr.outputs.registry }}/agentic-sre-alloy:${{ inputs.environment }}-${{ github.sha }}"}
-        run: terraform destroy -auto-approve
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.environment }}" == "dev" ]]; then
+            export TF_VAR_demo_suffix="${GITHUB_RUN_ID}"
+          fi
+          terraform destroy -auto-approve

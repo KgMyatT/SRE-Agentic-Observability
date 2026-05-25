@@ -8,11 +8,17 @@ terraform {
   }
 }
 
+variable "demo_suffix" {
+  description = "Optional suffix for ephemeral demo runs (e.g., GitHub run id) to avoid name collisions."
+  type        = string
+  default     = ""
+}
+
 module "stack" {
   source = "../../"
 
   project_name = "agentic-sre"
-  environment  = "dev"
+  environment  = var.demo_suffix != "" ? "dev-${var.demo_suffix}" : "dev"
   aws_region   = "us-east-1"
 
   grafana_cloud = {
