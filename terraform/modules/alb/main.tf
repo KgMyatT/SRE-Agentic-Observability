@@ -1,5 +1,11 @@
+locals {
+  name_hash = substr(md5(var.name_prefix), 0, 8)
+  lb_name   = "agentic-sre-${local.name_hash}-alb"
+  tg_api    = "agentic-sre-${local.name_hash}-tg-api"
+}
+
 resource "aws_lb" "this" {
-  name               = "${var.name_prefix}-alb"
+  name               = local.lb_name
   load_balancer_type = "application"
   internal           = false
   security_groups    = [var.alb_security_group_id]
@@ -7,7 +13,7 @@ resource "aws_lb" "this" {
 }
 
 resource "aws_lb_target_group" "api" {
-  name        = "${var.name_prefix}-tg-api"
+  name        = local.tg_api
   port        = var.api_container_port
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
@@ -57,4 +63,3 @@ resource "aws_lb_listener_rule" "api" {
 output "dns_name" { value = aws_lb.this.dns_name }
 output "target_group_arn" { value = aws_lb_target_group.api.arn }
 output "listener_arn" { value = aws_lb_listener.http.arn }
-
