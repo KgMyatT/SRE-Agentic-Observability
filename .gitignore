@@ -25,6 +25,8 @@ build/
 .idea/
 .vscode/
 
+# local scripts can be chmod'd on linux; keep executable bit changes in git
+
 # =========================
 # Terraform
 # =========================

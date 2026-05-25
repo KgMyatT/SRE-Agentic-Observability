@@ -31,7 +31,7 @@ data "aws_iam_policy_document" "ecs_task_inline" {
       "secretsmanager:GetSecretValue",
       "secretsmanager:DescribeSecret"
     ]
-    resources = ["*"]
+    resources = values(var.secret_arns)
   }
 
   statement {
@@ -40,7 +40,7 @@ data "aws_iam_policy_document" "ecs_task_inline" {
       "logs:CreateLogStream",
       "logs:PutLogEvents"
     ]
-    resources = ["*"]
+    resources = [var.log_group_arn]
   }
 }
 

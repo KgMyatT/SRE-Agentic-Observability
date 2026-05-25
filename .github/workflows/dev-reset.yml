@@ -1,0 +1,53 @@
+name: Dev Reset (Demo Cleanup)
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: "AWS region"
+        required: true
+        default: "us-east-1"
+      prefix:
+        description: "Resource name prefix to delete"
+        required: true
+        default: "agentic-sre-dev"
+      confirm_prefix:
+        description: "Type the exact prefix again to confirm deletion"
+        required: true
+        default: ""
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preflight confirm
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.confirm_prefix }}" != "${{ inputs.prefix }}" ]]; then
+            echo "Confirmation failed. confirm_prefix must exactly match prefix." >&2
+            exit 1
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Run cleanup
+        shell: bash
+        env:
+          AWS_REGION: ${{ inputs.aws_region }}
+          PREFIX: ${{ inputs.prefix }}
+          CONFIRM_DELETE_PREFIX: ${{ inputs.confirm_prefix }}
+        run: |
+          chmod +x scripts/dev_reset.sh
+          scripts/dev_reset.sh
+
