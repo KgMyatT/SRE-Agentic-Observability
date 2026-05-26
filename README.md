@@ -26,3 +26,4 @@ See:
 - `docs/operations.md`
 - `docs/troubleshooting.md`
 
+comit-readmi
