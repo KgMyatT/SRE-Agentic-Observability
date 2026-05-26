@@ -14,6 +14,19 @@ resource "aws_secretsmanager_secret" "this" {
   recovery_window_in_days = 7
 }
 
+resource "random_password" "redis_auth_token" {
+  length      = 32
+  min_upper   = 1
+  min_lower   = 1
+  min_numeric = 1
+  special     = false
+}
+
+resource "aws_secretsmanager_secret_version" "redis_auth_token" {
+  secret_id     = aws_secretsmanager_secret.this["redis_auth_token"].id
+  secret_string = random_password.redis_auth_token.result
+}
+
 output "secret_arns" {
   value = {
     openai_api_key   = aws_secretsmanager_secret.this["openai_api_key"].arn
@@ -26,3 +39,7 @@ output "secret_arns" {
   }
 }
 
+output "redis_auth_token_value" {
+  value     = random_password.redis_auth_token.result
+  sensitive = true
+}

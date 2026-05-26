@@ -1,7 +1,10 @@
 variable "name_prefix" { type = string }
 variable "private_subnet_ids" { type = list(string) }
 variable "redis_security_group_id" { type = string }
-variable "auth_token_secret_arn" { type = string }
+variable "auth_token" {
+  type      = string
+  sensitive = true
+}
 variable "redis" {
   type = object({
     node_type           = string
@@ -15,4 +18,3 @@ variable "redis" {
     snapshot_window     = string
   })
 }
-

@@ -3,10 +3,6 @@ resource "aws_elasticache_subnet_group" "this" {
   subnet_ids = var.private_subnet_ids
 }
 
-data "aws_secretsmanager_secret_version" "auth" {
-  secret_id = var.auth_token_secret_arn
-}
-
 resource "aws_elasticache_replication_group" "this" {
   replication_group_id = "${var.name_prefix}-redis"
   description          = "Redis for agentic SRE queues"
@@ -21,7 +17,7 @@ resource "aws_elasticache_replication_group" "this" {
 
   at_rest_encryption_enabled = var.redis.at_rest_encryption
   transit_encryption_enabled = var.redis.transit_encryption
-  auth_token                 = trimspace(data.aws_secretsmanager_secret_version.auth.secret_string)
+  auth_token                 = trimspace(var.auth_token)
 
   snapshot_retention_limit = var.redis.snapshot_retention
   snapshot_window          = var.redis.snapshot_window

@@ -54,7 +54,7 @@ module "redis" {
   private_subnet_ids      = module.vpc.private_subnet_ids
   redis_security_group_id = module.security_groups.redis_sg_id
   redis                   = var.redis
-  auth_token_secret_arn   = module.secrets_manager.secret_arns.redis_auth_token
+  auth_token              = module.secrets_manager.redis_auth_token_value
 }
 
 module "ecs" {
